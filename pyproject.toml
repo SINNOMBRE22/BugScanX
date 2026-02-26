@@ -37,7 +37,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Ayanrajpoot10/bugscanx"
+Homepage = "https://github.com/FreeNetLabs/bugscanx"
 
 [project.scripts]
 bugscanx = "bugscanx.main:main"
