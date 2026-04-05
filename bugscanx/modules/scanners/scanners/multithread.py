@@ -6,6 +6,7 @@ from threading import Thread, RLock
 
 
 class Logger:
+    # Colores para la interfaz estética que tanto te gusta (Cyberpunk style)
     COLORS = {
         'ORANGE': '\033[33m',
         'MAGENTA': '\033[35m',
@@ -28,19 +29,25 @@ class Logger:
         return f"{cls.COLORS.get(color, '')}{text}{cls.RESET}"
 
     def replace(self, message):
-        cols = os.get_terminal_size().columns
+        """Reemplaza la línea actual en la terminal (para la barra de progreso)"""
+        try:
+            cols = os.get_terminal_size().columns
+        except OSError:
+            cols = 80
         msg = f"{message[:cols - 3]}..." if len(message) > cols else message
         with self._lock:
             sys.stdout.write(f'{self.CLEAR_LINE}{msg}{self.RESET}\r')
             sys.stdout.flush()
 
     def log(self, message):
+        """Escribe un log permanente en la terminal"""
         with self._lock:
             sys.stderr.write(f'\r{self.CLEAR_LINE}{message}{self.RESET}\n')
             sys.stderr.flush()
 
 
 class CursorManager:
+    """Oculta el cursor mientras escanea para que se vea más limpio"""
     def __enter__(self):
         print('\033[?25l', end='', flush=True)
         return self
@@ -60,7 +67,6 @@ class MultiThread(ABC):
         self._success_count = 0
 
         self.threads = threads
-
         self.logger = Logger()
 
     def set_total(self, total):
@@ -71,13 +77,15 @@ class MultiThread(ABC):
         with CursorManager():
             try:
                 self.init()
+                # Creamos los hilos trabajadores
                 workers = [
                     Thread(target=self._worker, daemon=True)
                     for _ in range(self.threads)
                 ]
                 for t in workers:
                     t.start()
-                
+
+                # Generador de tareas (hosts a escanear)
                 task_gen = self.generate_tasks()
                 try:
                     while True:
@@ -85,10 +93,11 @@ class MultiThread(ABC):
                         self._queue.put(task)
                 except StopIteration:
                     pass
-                
+
                 self._queue.join()
                 self.complete()
             except KeyboardInterrupt:
+                # Si cancelas con Ctrl+C, detiene todo limpiamente
                 pass
         print()
 
@@ -109,6 +118,7 @@ class MultiThread(ABC):
                 self._queue.task_done()
 
     def success(self, item):
+        """Registra un host encontrado con éxito"""
         with self._lock:
             self._success.append(item)
             self._success_count += 1
@@ -117,15 +127,17 @@ class MultiThread(ABC):
         return self._success
 
     def progress(self, *extra):
+        """Muestra el progreso en tiempo real"""
         parts = [
             f"{self._scanned / max(1, self._total) * 100:.2f}%",
-            f"{self._scanned} / {self._total}",
-            f"{self._success_count}"
+            f"Escaneados: {self._scanned} / {self._total}",
+            f"Encontrados: {self._success_count}"
         ] + [str(x) for x in extra if x]
         self.logger.replace(" - ".join(parts))
 
     def complete(self):
-        self.progress(self.logger.colorize("Scan completed", "GREEN"))
+        # Traducción del mensaje final
+        self.progress(self.logger.colorize("Escaneo finalizado", "GREEN"))
 
     @abstractmethod
     def generate_tasks(self): pass

@@ -6,8 +6,8 @@ import requests
 from rich import print
 from bugscanx.utils.prompts import get_input
 
-
 class HostScanner:
+    # Diccionario de proveedores de CDN con sus huellas digitales (Headers y CNAMEs)
     CDN_PROVIDERS = {
         "Cloudflare": {
             "headers": ["cf-ray", "cf-cache-status", "cf-request-id", "cf-visitor", "cf-connecting-ip", "cf-ipcountry", "cf-railgun", "cf-polished", "cf-apo-via"],
@@ -44,18 +44,6 @@ class HostScanner:
         "Imperva": {
             "headers": ["x-iinfo", "incap-ses", "visid-incap"],
             "cname": ["incapdns.net", "imperva.com", "impervadns.net"]
-        },
-        "Cachefly": {
-            "headers": ["x-cf-", "server-cachefly"],
-            "cname": ["cachefly.net"]
-        },
-        "Alibaba": {
-            "headers": ["ali-cdn-", "x-oss-", "server-tengine"],
-            "cname": ["alikunlun.com", "alicdn.com"]
-        },
-        "Tencent": {
-            "headers": ["x-nws-", "x-daa-tunnel"],
-            "cname": ["qcloudcdn.com", "myqcloud.com"]
         }
     }
 
@@ -67,18 +55,20 @@ class HostScanner:
         self.http_headers = {}
 
     def get_ips(self):
+        """Obtiene y muestra las direcciones IP vinculadas al host"""
         try:
             ips = socket.getaddrinfo(self.host, None)
             unique_ips = list(set(ip[4][0] for ip in ips))
-            print("[bold white]\nIPs:[/bold white]")
+            print("[bold white]\nDirecciones IP:[/bold white]")
             for ip in unique_ips:
                 print(f"  • {ip}")
             return True
         except socket.gaierror as e:
-            print(f"[bold red] Error resolving hostname: {e}[/bold red]")
+            print(f"[bold red] Error al resolver el host: {e}[/bold red]")
             return False
 
     def get_cname_records(self):
+        """Intenta obtener registros CNAME para identificar CDNs"""
         try:
             result = []
             answers = socket.getaddrinfo(self.host, None)
@@ -93,116 +83,120 @@ class HostScanner:
             return []
 
     def get_cdn(self):
+        """Detecta si el host usa una Red de Entrega de Contenidos (CDN)"""
         try:
             detected_cdns = set()
-            
+            # Usamos los headers obtenidos en get_http_info si están disponibles
             if self.http_headers:
                 headers = {k.lower(): v.lower() for k, v in self.http_headers.items()}
             else:
                 response = requests.get(self.url, timeout=5)
                 headers = {k.lower(): v.lower() for k, v in response.headers.items()}
-            
+
             cnames = self.get_cname_records()
-            
+
             for provider, indicators in self.CDN_PROVIDERS.items():
+                # Revisión por Headers
                 if any(header.lower() in headers.keys() for header in indicators['headers']):
                     detected_cdns.add(provider)
                     continue
-                
+                # Revisión por CNAME
                 if any(cname_pattern in cname for cname in cnames 
                       for cname_pattern in indicators['cname']):
                     detected_cdns.add(provider)
-            
+
             if detected_cdns:
-                print("[bold white]\nCDNs:[/bold white]")
+                print("[bold white]\nCDNs Detectadas:[/bold white]")
                 for cdn in detected_cdns:
                     print(f"  • {cdn}")
             else:
-                print("[bold white]\nNo known CDN[/bold white]")
-                
+                print("[bold white]\nNo se detectó una CDN conocida[/bold white]")
+
         except requests.exceptions.RequestException as e:
-            print(f"[bold red] Error checking CDN: {e}[/bold red]")
+            print(f"[bold red] Error al verificar CDN: {e}[/bold red]")
 
     def get_http_info(self):
+        """Prueba los diferentes métodos HTTP (GET, POST, etc.)"""
         def check_method(method):
             try:
                 response = requests.request(method, self.url, timeout=5)
                 return method, response.status_code, dict(response.headers)
             except requests.exceptions.RequestException as e:
                 return method, 0, {'error': str(e)}
-        
+
         with ThreadPoolExecutor(max_workers=len(self.method_list)) as executor:
             futures = {
                 executor.submit(check_method, method): method 
                 for method in self.method_list
             }
-            
+
             for future in as_completed(futures):
                 method, status_code, headers = future.result()
 
                 if method == "GET" and status_code > 0 and 'error' not in headers:
                     self.http_headers = headers
-                
-                status_desc = http.client.responses.get(status_code, 'Unknown Status Code')
-                print(f"\n[bold yellow]Method: {method}[/bold yellow] | [bold magenta]Status: {status_code} {status_desc}[/bold magenta]")
-                
+
+                status_desc = http.client.responses.get(status_code, 'Código Desconocido')
+                print(f"\n[bold yellow]Método: {method}[/bold yellow] | [bold magenta]Estado: {status_code} {status_desc}[/bold magenta]")
+
                 if 'error' in headers:
                     print(f"  [bold red]Error: {headers['error']}[/bold red]")
                 else:
                     if headers:
-                        print("  [bold white]Headers:[/bold white]")
+                        print("  [bold white]Encabezados (Headers):[/bold white]")
                         for header_name, header_value in headers.items():
                             print(f"    {header_name}: {header_value}")
 
     def get_sni_info(self):
+        """Extrae información del certificado SSL y la negociación TLS"""
         if self.protocol != "https":
             return
-        
+
         try:
             context = ssl.create_default_context()
             with socket.create_connection((self.host, 443)) as sock:
                 with context.wrap_socket(sock, server_hostname=self.host) as ssock:
-                    sni_info = {
-                        'version': ssock.version(),
-                        'cipher': ssock.cipher(),
-                        'cert': ssock.getpeercert()
-                    }
-                    
-                    print(f"[bold white]SSL Version:[/bold white] {sni_info['version']}")
-                    print(f"[bold white]Cipher Suite:[/bold white] {sni_info['cipher'][0]}")
-                    print(f"[bold white]Cipher Bits:[/bold white] {sni_info['cipher'][1]}")
-                    
-                    cert = sni_info['cert']
+                    print(f"\n[bold green]--- Información SSL/TLS ---[/bold green]")
+                    print(f"[bold white]Versión SSL:[/bold white] {ssock.version()}")
+                    print(f"[bold white]Cifrado:[/bold white] {ssock.cipher()[0]}")
+                    print(f"[bold white]Bits:[/bold white] {ssock.cipher()[1]}")
+
+                    cert = ssock.getpeercert()
                     
                     def parse_cert_field(field):
-                        return {item[0]: item[1] if len(item) > 1 else '' for item in field}
-                    
-                    print(f"[bold white]Subject:[/bold white] {parse_cert_field(cert.get('subject', []))}")
-                    print(f"[bold white]Issuer:[/bold white] {parse_cert_field(cert.get('issuer', []))}")
-                    print(f"[bold white]Serial Number:[/bold white] {cert.get('serialNumber', 'N/A')}")
-                    
+                        # Limpiamos el formato del certificado para que sea legible
+                        data = {}
+                        for item in field:
+                            if isinstance(item, tuple) and len(item) > 0:
+                                sub_item = item[0]
+                                data[sub_item[0]] = sub_item[1]
+                        return data
+
+                    print(f"[bold white]Sujeto:[/bold white] {parse_cert_field(cert.get('subject', []))}")
+                    print(f"[bold white]Emisor:[/bold white] {parse_cert_field(cert.get('issuer', []))}")
+                    print(f"[bold white]Número de Serie:[/bold white] {cert.get('serialNumber', 'N/A')}")
+
         except Exception as e:
-            print(f"[bold red] Error getting SSL info: {e}[/bold red]")
+            print(f"[bold red] Error al obtener info SSL: {e}[/bold red]")
 
     def scan(self):
+        """Ejecuta el análisis completo"""
         if not self.get_ips():
             return
-            
         self.get_http_info()
         self.get_cdn()
         self.get_sni_info()
 
-
 def main():
-    host = get_input("Enter host", validators="required")
-    protocol = get_input("Select protocol", input_type="choice", choices=["http", "https"])
+    """Interfaz de usuario traducida"""
+    host = get_input("Ingresa el host a analizar", validators="required")
+    protocol = get_input("Selecciona el protocolo", input_type="choice", choices=["http", "https"])
     available_methods = ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "TRACE", "PATCH"]
     method_list = get_input(
-        "Select HTTP method(s)",
+        "Selecciona los métodos HTTP a probar",
         input_type="choice",
         multiselect=True, 
-        choices=available_methods,
-        transformer=lambda result: ', '.join(result) if isinstance(result, list) else result
+        choices=available_methods
     )
 
     scanner = HostScanner(host, protocol, method_list)

@@ -1,7 +1,5 @@
 import socket
-
 from .base import BaseScanner
-
 
 class ProxyScannerBase(BaseScanner):
     def __init__(
@@ -23,6 +21,7 @@ class ProxyScannerBase(BaseScanner):
         proxy_host_port = f"{proxy_host}:{port}"
         response_lines = []
 
+        # Formateo del payload (soporta [host], [crlf], etc.)
         formatted_payload = (
             self.payload
             .replace('[host]', self.target)
@@ -46,6 +45,8 @@ class ProxyScannerBase(BaseScanner):
                 response_lines = [line.strip() for line in response.split('\r\n') if line.strip()]
 
                 status_code = response_lines[0].split(' ')[1] if response_lines and len(response_lines[0].split(' ')) > 1 else 'N/A'
+                
+                # Si el status es válido y no es una redirección común
                 if status_code not in ['N/A', '302']:
                     self.success({'proxy_host': proxy_host, 'port': port, 'status_code': status_code, 'response': response_lines})
                     self.log_info(proxy_host_port, status_code, response_lines)
@@ -65,23 +66,26 @@ class ProxyScannerBase(BaseScanner):
     def log_info(self, proxy_host_port, status_code, response_lines=None):
         if response_lines is None:
             response_lines = []
-            
+
         if not response_lines and status_code in ['N/A', '302']:
             return
 
-        color_name = 'GREEN' if status_code == '101' else 'GRAY'
+        # Resaltado especial para WebSocket (Status 101)
+        color_name = 'GREEN' if status_code == '101' else 'CYAN' if status_code == '200' else 'GRAY'
         formatted_response = '\n    '.join(response_lines)
+        
         message = (
-            f"{self.logger.colorize(proxy_host_port.ljust(32) + ' ' + status_code, color_name)}\n"
+            f"{self.logger.colorize(proxy_host_port.ljust(32) + ' COD: ' + status_code, color_name)}\n"
         )
         if formatted_response:
             message += f"{self.logger.colorize('    ' + formatted_response, color_name)}\n"
         self.logger.log(message)
-        
+
+        # Guardar en archivo con etiquetas en español
         if self.output_file and status_code:
-            plain_message = f"{proxy_host_port:<32} {status_code}"
+            plain_message = f"{proxy_host_port:<32} Codigo: {status_code}"
             if formatted_response:
-                plain_message += f"\n    {formatted_response}"
+                plain_message += f"\n    Respuesta:\n    {formatted_response}"
             self.write_to_file(plain_message)
 
 
@@ -120,8 +124,9 @@ class HostProxyScanner(ProxyScannerBase):
 
     def init(self):
         self.write_scan_metadata(self.input_file)
-        self.log_info(proxy_host_port='Proxy:Port', status_code='Code')
-        self.log_info(proxy_host_port='----------', status_code='----')
+        # Cabeceras de la tabla en español
+        self.log_info(proxy_host_port='Proxy:Puerto', status_code='Cod')
+        self.log_info(proxy_host_port='------------', status_code='---')
 
 
 class CIDRProxyScanner(ProxyScannerBase):
@@ -146,7 +151,7 @@ class CIDRProxyScanner(ProxyScannerBase):
             **kwargs
         )
         self.cidr_ranges = cidr_ranges or []
-        
+
         if self.cidr_ranges:
             self.set_cidr_total(self.cidr_ranges)
 
@@ -160,5 +165,5 @@ class CIDRProxyScanner(ProxyScannerBase):
 
     def init(self):
         self.write_scan_metadata()
-        self.log_info(proxy_host_port='Proxy:Port', status_code='Code')
-        self.log_info(proxy_host_port='----------', status_code='----')
+        self.log_info(proxy_host_port='Proxy:Puerto', status_code='Cod')
+        self.log_info(proxy_host_port='------------', status_code='---')

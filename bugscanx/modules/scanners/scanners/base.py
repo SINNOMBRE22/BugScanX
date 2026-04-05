@@ -21,15 +21,17 @@ class BaseScanner(MultiThread):
                     f.write(message + '\n')
 
     def write_scan_metadata(self, filepath=None):
+        """Escribe la información del escaneo al inicio del archivo de resultados"""
         if self.output_file and not self._metadata_written:
             with self._file_lock:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
                 with open(self.output_file, 'a', encoding='utf-8') as f:
-                    f.write(f"\nScan Time: {timestamp}\n")
+                    # Traducción de los metadatos en el archivo TXT
+                    f.write(f"\nFecha y Hora del Escaneo: {timestamp}\n")
                     if filepath:
-                        f.write(f"File Scanned: {filepath}\n\n")
+                        f.write(f"Archivo Escaneado: {filepath}\n\n")
                     elif self.cidr_ranges:
-                        f.write(f"CIDR Ranges: {', '.join(self.cidr_ranges)}\n\n")
+                        f.write(f"Rangos CIDR: {', '.join(self.cidr_ranges)}\n\n")
                 self._metadata_written = True
 
     def convert_host_port(self, host, port):
@@ -85,6 +87,7 @@ class BaseScanner(MultiThread):
             with open(filepath, 'r', encoding='utf-8') as file:
                 for line in file:
                     host = line.strip()
+                    # Ignora comentarios y wildcards
                     if host and not host.startswith(('#', '*')):
                         yield host
         except (FileNotFoundError, IOError, UnicodeDecodeError):

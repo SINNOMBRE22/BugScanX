@@ -24,12 +24,14 @@ class VersionManager:
         self.console = Console()
 
     def _is_prerelease(self, version_str):
+        """Detecta si una versión es beta o pre-lanzamiento"""
         try:
             return Version(version_str).is_prerelease
         except Exception:
             return False
 
     def _parse_pip_output(self, output):
+        """Analiza la salida de pip para encontrar versiones disponibles"""
         lines = output.splitlines()
         versions = {}
         available_versions = []
@@ -49,9 +51,10 @@ class VersionManager:
         return versions, available_versions
 
     def check_updates(self):
+        """Busca actualizaciones en los servidores de PyPI"""
         try:
             with self.console.status(
-                "[yellow]Checking for updates...",
+                "[yellow]Buscando actualizaciones...",
                 spinner="dots"
             ):
                 result = subprocess.run(
@@ -72,7 +75,7 @@ class VersionManager:
 
                 versions_info, all_versions = self._parse_pip_output(result.stdout)
                 if not all_versions:
-                    self.console.print("[red] No version information found")
+                    self.console.print("[red] No se encontró información de versiones")
                     return None
 
                 current_version = versions_info.get('installed') or version(self.package_name)
@@ -82,18 +85,9 @@ class VersionManager:
                 latest_stable = stable_versions[0] if stable_versions else None
                 latest_prerelease = all_versions[0] if all_versions else None
 
+                # Si ya estamos en la última versión
                 if not latest_prerelease or current_ver >= parse_version(latest_prerelease):
-                    self.console.print(f"[green] You're up to date: {current_version}")
-                    return None
-
-                if self._is_prerelease(latest_prerelease) and current_ver >= parse_version(latest_prerelease):
-                    latest_prerelease = None
-
-                if latest_stable and current_ver >= parse_version(latest_stable):
-                    latest_stable = None
-
-                if not latest_stable and not latest_prerelease:
-                    self.console.print(f"[green] You're up to date: {current_version}")
+                    self.console.print(f"[green] Estás actualizado: {current_version}")
                     return None
 
                 return VersionInfo(
@@ -109,16 +103,17 @@ class VersionManager:
                 )
 
         except subprocess.TimeoutExpired:
-            self.console.print("[red] Update check timed out. Please check your internet connection.")
+            self.console.print("[red] Tiempo de espera agotado. Revisa tu conexión a internet.")
         except subprocess.CalledProcessError:
-            self.console.print("[red] Failed to check updates")
+            self.console.print("[red] Error al consultar actualizaciones")
         except Exception:
-            self.console.print("[red] Error checking updates")
+            self.console.print("[red] Error inesperado al buscar actualizaciones")
         return None
 
     def install_update(self, install_prerelease=False):
+        """Ejecuta pip para instalar la nueva versión"""
         try:
-            with self.console.status("[yellow]Installing update...", spinner="point"):
+            with self.console.status("[yellow]Instalando actualización...", spinner="point"):
                 cmd = [
                     sys.executable,
                     "-m",
@@ -129,7 +124,7 @@ class VersionManager:
                 ]
                 if install_prerelease:
                     cmd.insert(-1, "--pre")
-                
+
                 subprocess.run(
                     cmd,
                     capture_output=True,
@@ -137,14 +132,15 @@ class VersionManager:
                     check=True,
                     timeout=60,
                 )
-                self.console.print("[green] Update successful!")
+                self.console.print("[green] ¡Actualización completada con éxito!")
                 return True
         except Exception as e:
-            self.console.print(f"[red] Installation failed: {str(e)}")
+            self.console.print(f"[red] Falló la instalación: {str(e)}")
             return False
 
     def restart_application(self):
-        self.console.print("[yellow] Restarting application...")
+        """Reinicia el script automáticamente para aplicar los cambios"""
+        self.console.print("[yellow] Reiniciando aplicación...")
         time.sleep(1)
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
@@ -157,13 +153,15 @@ def main():
             return
 
         if version_info.prerelease_is_newer:
+            # Aviso especial para versiones Beta
             manager.console.print(
-                f"[yellow] Pre-release update available: {version_info.current_version} → {version_info.latest_prerelease}"
+                f"[yellow] Nueva versión Pre-release disponible: {version_info.current_version} → {version_info.latest_prerelease}"
             )
-            manager.console.print("[red] Warning: Pre-release versions may be unstable and contain bugs.")
-            if not get_confirm(" I understand the risks, update anyway"):
+            manager.console.print("[red] Advertencia: Las versiones Beta pueden ser inestables y contener errores.")
+            if not get_confirm(" Entiendo los riesgos, actualizar de todos modos"):
+                # Si el usuario dice que NO a la beta, pero hay una estable más nueva, ofrecerla
                 if version_info.latest_stable and parse_version(version_info.latest_stable) > parse_version(version_info.current_version):
-                    if get_confirm(f" Update to stable version {version_info.latest_stable}"):
+                    if get_confirm(f" ¿Actualizar a la versión estable {version_info.latest_stable}?"):
                         if manager.install_update(install_prerelease=False):
                             manager.restart_application()
                 return
@@ -171,15 +169,16 @@ def main():
                 if manager.install_update(install_prerelease=True):
                     manager.restart_application()
         else:
+            # Actualización estable estándar
             manager.console.print(
-                f"[yellow] Update available: {version_info.current_version} → {version_info.latest_stable}"
+                f"[yellow] Actualización disponible: {version_info.current_version} → {version_info.latest_stable}"
             )
-            if not get_confirm(" Update now"):
+            if not get_confirm(" ¿Actualizar ahora?"):
                 return
             if manager.install_update(install_prerelease=False):
                 manager.restart_application()
 
     except KeyboardInterrupt:
-        manager.console.print("[yellow] Update cancelled by user.")
+        manager.console.print("[yellow] Actualización cancelada por el usuario.")
     except Exception as e:
-        manager.console.print(f"[red] Error during update process: {str(e)}")
+        manager.console.print(f"[red] Error durante el proceso: {str(e)}")

@@ -1,8 +1,6 @@
 import ssl
 import socket
-
 from .base import BaseScanner
-
 
 class SSLScannerBase(BaseScanner):
     def __init__(
@@ -10,13 +8,14 @@ class SSLScannerBase(BaseScanner):
         **kwargs
     ):
         super().__init__(**kwargs)
+        # Usamos la versión de TLS compatible con el sistema
         self.tls_version = ssl.PROTOCOL_TLS
 
     def resolve_ip(self, host):
         try:
             return socket.gethostbyname(host)
         except Exception:
-            return "Unknown"
+            return "Desconocida"
 
     def task(self, payload):
         sni = payload['host']
@@ -26,6 +25,7 @@ class SSLScannerBase(BaseScanner):
 
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket_client:
+                # Timeout de 2 segundos para no perder tiempo en hosts muertos
                 socket_client.settimeout(2)
                 socket_client.connect((sni, 443))
                 context = ssl.SSLContext(self.tls_version)
@@ -34,17 +34,18 @@ class SSLScannerBase(BaseScanner):
                     server_hostname=sni,
                     do_handshake_on_connect=True,
                 ) as ssl_socket:
-                    
+
                     data = {
                         'sni': sni,
                         'tls_version': ssl_socket.version()
                     }
-                    
+
                     self._handle_success(data)
         except Exception:
             pass
 
-        self.progress(sni)
+        # Mostramos el progreso en la terminal
+        self.progress(f"Probando SNI: {sni}")
 
 
 class HostSSLScanner(SSLScannerBase):
@@ -62,6 +63,7 @@ class HostSSLScanner(SSLScannerBase):
             self.set_host_total(self.input_file)
 
     def log_info(self, **kwargs):
+        # Colores estéticos para identificar rápido los bugs
         messages = [
             self.logger.colorize('{tls_version:<8}', 'CYAN'),
             self.logger.colorize('{ip:<15}', 'YELLOW'),
@@ -69,7 +71,7 @@ class HostSSLScanner(SSLScannerBase):
         ]
         formatted_message = '  '.join(messages).format(**kwargs)
         self.logger.log(formatted_message)
-        
+
         if self.output_file and 'tls_version' in kwargs and kwargs['tls_version']:
             plain_message = f"{kwargs['tls_version']:<8}  {kwargs['ip']:<15}  {kwargs['sni']}"
             self.write_to_file(plain_message)
@@ -82,8 +84,9 @@ class HostSSLScanner(SSLScannerBase):
 
     def init(self):
         self.write_scan_metadata(self.input_file)
-        self.log_info(tls_version='TLS', ip='IP', sni='SNI')
-        self.log_info(tls_version='---', ip='--', sni='---')
+        # Cabeceras en español
+        self.log_info(tls_version='PROTO', ip='DIRECCION IP', sni='HOST SNI')
+        self.log_info(tls_version='-----', ip='------------', sni='--------')
 
     def _handle_success(self, data):
         data['ip'] = self.resolve_ip(data['sni'])
@@ -101,7 +104,7 @@ class CIDRSSLScanner(SSLScannerBase):
     ):
         super().__init__(threads=threads, is_cidr_input=True, cidr_ranges=cidr_ranges, output_file=output_file, **kwargs)
         self.cidr_ranges = cidr_ranges or []
-        
+
         if self.cidr_ranges:
             self.set_cidr_total(self.cidr_ranges)
 
@@ -112,7 +115,7 @@ class CIDRSSLScanner(SSLScannerBase):
         ]
         formatted_message = '  '.join(messages).format(**kwargs)
         self.logger.log(formatted_message)
-        
+
         if self.output_file and 'tls_version' in kwargs and kwargs['tls_version']:
             plain_message = f"{kwargs['tls_version']:<8}  {kwargs['sni']}"
             self.write_to_file(plain_message)
@@ -125,8 +128,9 @@ class CIDRSSLScanner(SSLScannerBase):
 
     def init(self):
         self.write_scan_metadata()
-        self.log_info(tls_version='TLS', sni='SNI')
-        self.log_info(tls_version='---', sni='---')
+        # Cabeceras para modo CIDR
+        self.log_info(tls_version='PROTO', sni='HOST SNI')
+        self.log_info(tls_version='-----', sni='--------')
 
     def _handle_success(self, data):
         self.success(data)

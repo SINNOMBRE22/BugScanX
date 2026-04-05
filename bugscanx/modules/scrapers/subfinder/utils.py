@@ -5,12 +5,15 @@ from bugscanx.utils.http import HEADERS, USER_AGENTS
 
 
 class RequestHandler:
+    """Maneja las peticiones a las APIs de subdominios"""
     def __init__(self):
         self.session = requests.Session()
+        # Ignoramos errores de SSL para mayor compatibilidad
         self.session.verify = False
         requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
     def _get_headers(self):
+        """Rotación de User-Agents para evitar bloqueos"""
         headers = HEADERS.copy()
         headers["user-agent"] = random.choice(USER_AGENTS)
         return headers
@@ -32,6 +35,8 @@ class RequestHandler:
 
 
 class DomainValidator:
+    """Valida que los dominios y subdominios tengan un formato correcto"""
+    # Expresión regular para verificar dominios válidos
     DOMAIN_REGEX = re.compile(
         r'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+'
         r'[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]$'
@@ -39,6 +44,7 @@ class DomainValidator:
 
     @classmethod
     def is_valid_domain(cls, domain):
+        """Verifica si el texto ingresado es un dominio real"""
         return bool(
             domain
             and isinstance(domain, str)
@@ -47,6 +53,10 @@ class DomainValidator:
 
     @staticmethod
     def filter_valid_subdomains(subdomains, domain):
+        """
+        Filtra la lista de resultados para asegurar que todos 
+        pertenezcan al dominio objetivo (ej. que terminen en .telcel.com)
+        """
         if not domain or not isinstance(domain, str):
             return set()
 
@@ -57,6 +67,7 @@ class DomainValidator:
             if not isinstance(sub, str):
                 continue
 
+            # El subdominio es válido si es igual al dominio o termina con el sufijo
             if sub == domain or sub.endswith(domain_suffix):
                 result.add(sub)
 
@@ -64,9 +75,12 @@ class DomainValidator:
 
 
 class CursorManager:
+    """Controla la visibilidad del cursor en la terminal (Aesthetic)"""
     def __enter__(self):
+        # Oculta el cursor
         print('\033[?25l', end='', flush=True)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # Muestra el cursor al finalizar
         print('\033[?25h', end='', flush=True)

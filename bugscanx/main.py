@@ -2,42 +2,48 @@ import sys
 from rich import print
 from . import banner, ascii, handler
 
-
+# Opciones del menú traducidas al español
 MENU_OPTIONS = {
-    '1': ("HOST SCANNER", "bold cyan"),
-    '2': ("SUBFINDER", "bold magenta"),
-    '3': ("IP LOOKUP", "bold cyan"),
-    '4': ("FILE TOOLKIT", "bold magenta"),
-    '5': ("PORT SCANNER", "bold white"),
-    '6': ("DNS RECORD", "bold green"),
-    '7': ("HOST INFO", "bold blue"),
-    '8': ("HELP", "bold yellow"),
-    '9': ("UPDATE", "bold magenta"),
-    '0': ("EXIT", "bold red"),
+    '1': ("ESCANER DE HOSTS", "bold cyan"),
+    '2': ("BUSCADOR SUBDOMINIOS", "bold magenta"),
+    '3': ("BUSQUEDA DE IP", "bold cyan"),
+    '4': ("HERRAMIENTAS DE ARCHIVO", "bold magenta"),
+    '5': ("ESCANER DE PUERTOS", "bold white"),
+    '6': ("REGISTROS DNS", "bold green"),
+    '7': ("INFO DEL HOST", "bold blue"),
+    '8': ("AYUDA / HELP", "bold yellow"),
+    '9': ("ACTUALIZAR", "bold magenta"),
+    '0': ("SALIR", "bold red"),
 }
-
 
 def main():
     try:
         while True:
+            # Generar el menú visual
             menu = (
                 f"[{color}] [{k}]{' ' if len(k)==1 else ''} {desc}"
                 for k, (desc, color) in MENU_OPTIONS.items()
             )
-            banner()
+            banner() # Llama al banner (puedes editarlo en banner.py)
             print('\n'.join(menu))
 
-            choice = input("\n \033[36m[-]  Your Choice: \033[0m")
+            # Traducción de la entrada de selección
+            choice = input("\n \033[36m[-]  Tu Selección: \033[0m")
             if choice not in MENU_OPTIONS:
                 continue
 
             if choice == '0':
                 return
 
+            # Muestra el título de la opción elegida en ASCII
             ascii(MENU_OPTIONS[choice][0])
+            
             try:
+                # Ejecuta la función correspondiente en handler.py (ej: run_1)
                 getattr(handler, f'run_{choice}')()
-                print("\n[yellow] Press Enter to continue...", end="")
+                
+                # Traducción del mensaje de espera
+                print("\n[yellow] Presiona Enter para continuar...", end="")
                 input()
             except KeyboardInterrupt:
                 pass

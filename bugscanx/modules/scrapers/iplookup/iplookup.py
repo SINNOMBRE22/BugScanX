@@ -20,11 +20,13 @@ class IPLookup:
             return set()
 
     def _save_domains(self, domains, output_file):
+        """Guarda los dominios encontrados en el archivo de salida"""
         if domains:
             with open(output_file, "a", encoding="utf-8") as f:
                 f.write("\n".join(sorted(domains)) + "\n")
 
     def process_ip(self, ip, output_file, scrapers, total):
+        # Mensajes de la consola (estos se traducen en logger.py, pero aquí se llaman)
         self.console.print_ip_start(ip)
         self.console.print_progress(self.completed, total)
 
@@ -47,7 +49,7 @@ class IPLookup:
 
     def run(self, ips, output_file, scrapers=None):
         if not ips:
-            self.console.print_error("No valid IPs provided")
+            self.console.print_error("No se proporcionaron IPs válidas")
             return
 
         os.makedirs(os.path.dirname(output_file) or '.', exist_ok=True)
@@ -55,7 +57,7 @@ class IPLookup:
         all_domains = set()
         total = len(ips)
         scrapers = scrapers or get_scrapers()
-        
+
         with self.cursor_manager:
             with ThreadPoolExecutor(max_workers=5) as executor:
                 futures = [
@@ -67,7 +69,7 @@ class IPLookup:
                         result = future.result()
                         all_domains.update(result)
                     except Exception as e:
-                        self.console.print_error(f"Error processing IP: {str(e)}")
+                        self.console.print_error(f"Error procesando la IP: {str(e)}")
 
             self.console.print_final_summary(output_file)
             return all_domains
@@ -75,17 +77,20 @@ class IPLookup:
 
 def main():
     ips = []
-    input_type = get_input("Select input mode", input_type="choice", choices=["Manual", "File"])
+    # Traducción del modo de entrada
+    input_type = get_input("Selecciona el modo de entrada", input_type="choice", choices=["Manual", "Archivo (File)"])
+    
     if input_type == "Manual":
-        ip_input = get_input("Enter IP or CIDR", validators="cidr")
+        ip_input = get_input("Ingresa IP o rango CIDR", validators="cidr")
         ips.extend(process_input(ip_input))
-        default_output = f"{ip_input}_domains.txt".replace("/", "-")
+        default_output = f"{ip_input}_dominios.txt".replace("/", "-")
     else:
-        file_path = get_input("Enter filename", input_type="file", validators="file")
+        file_path = get_input("Nombre del archivo", input_type="file", validators="file")
         ips.extend(process_file(file_path))
-        default_output = f"{file_path.rsplit('.', 1)[0]}_domains.txt"
+        default_output = f"{file_path.rsplit('.', 1)[0]}_dominios.txt"
 
-    output_file = get_input("Enter output filename", default=default_output, validators="required")
+    # Traducción del nombre del archivo de resultados
+    output_file = get_input("Nombre del archivo de salida", default=default_output, validators="required")
     print()
     iplookup = IPLookup()
     iplookup.run(ips, output_file)

@@ -1,8 +1,6 @@
 import requests
 from urllib.parse import urlparse, urlunparse
-
 from .direct import DirectScannerBase
-
 
 class Proxy2ScannerBase(DirectScannerBase):
     def __init__(
@@ -47,7 +45,8 @@ class Proxy2ScannerBase(DirectScannerBase):
         max_attempts = self.DEFAULT_RETRY
 
         for attempt in range(max_attempts):
-            self.progress(f"{method} (via proxy) {url}")
+            # Traducción del mensaje de progreso
+            self.progress(f"{method} (vía proxy) {url}")
             try:
                 return self.session.request(method, url, **kwargs)
             except (
@@ -58,7 +57,7 @@ class Proxy2ScannerBase(DirectScannerBase):
             ) as e:
                 wait_time = 1 if isinstance(e, requests.exceptions.ConnectionError) else 5
                 for _ in self.sleep(wait_time):
-                    self.progress(f"{method} (via proxy) {url}")
+                    self.progress(f"{method} (vía proxy) {url}")
                 if attempt == max_attempts - 1:
                     return None
         return None
@@ -94,6 +93,7 @@ class HostProxy2Scanner(Proxy2ScannerBase):
         kwargs['server'] = ((server[:12] + "...") if len(server) > 12 
                           else f"{server:<12}")
 
+        # Colores estéticos para la tabla
         messages = [
             self.logger.colorize(f"{{method:<6}}", "CYAN"),
             self.logger.colorize(f"{{status_code:<4}}", "GREEN"),
@@ -105,7 +105,7 @@ class HostProxy2Scanner(Proxy2ScannerBase):
 
         formatted_message = '  '.join(messages).format(**kwargs)
         self.logger.log(formatted_message)
-        
+
         if self.output_file and 'method' in kwargs and kwargs['method']:
             plain_message = f"{kwargs['method']:<6}  {kwargs['status_code']:<4}  {kwargs['server']:<15}  {kwargs['port']:<4}  {kwargs['ip']:<16}  {kwargs['host']}"
             self.write_to_file(plain_message)
@@ -122,8 +122,9 @@ class HostProxy2Scanner(Proxy2ScannerBase):
 
     def init(self):
         self.write_scan_metadata(self.input_file)
-        self.log_info(method='Method', status_code='Code', server='Server', port='Port', ip='IP', host='Host')
-        self.log_info(method='------', status_code='----', server='------', port='----', ip='--', host='----')
+        # Cabeceras en español
+        self.log_info(method='Metodo', status_code='Cod', server='Servidor', port='Pto', ip='IP', host='Host')
+        self.log_info(method='------', status_code='----', server='--------', port='---', ip='--', host='----')
 
     def _handle_success(self, data):
         self.success(data)
@@ -152,7 +153,7 @@ class CIDRProxy2Scanner(Proxy2ScannerBase):
             **kwargs
         )
         self.cidr_ranges = cidr_ranges or []
-        
+
         if self.cidr_ranges:
             self.set_cidr_total(self.cidr_ranges)
 
@@ -171,7 +172,7 @@ class CIDRProxy2Scanner(Proxy2ScannerBase):
 
         formatted_message = '  '.join(messages).format(**kwargs)
         self.logger.log(formatted_message)
-        
+
         if self.output_file and 'method' in kwargs and kwargs['method']:
             plain_message = f"{kwargs['method']:<6}  {kwargs['status_code']:<4}  {kwargs['server']:<15}  {kwargs['port']:<4}  {kwargs['host']}"
             self.write_to_file(plain_message)
@@ -188,8 +189,9 @@ class CIDRProxy2Scanner(Proxy2ScannerBase):
 
     def init(self):
         self.write_scan_metadata()
-        self.log_info(method='Method', status_code='Code', server='Server', port='Port', host='Host')
-        self.log_info(method='------', status_code='----', server='------', port='----', host='----')
+        # Cabeceras en español para modo CIDR
+        self.log_info(method='Metodo', status_code='Cod', server='Servidor', port='Pto', host='Host')
+        self.log_info(method='------', status_code='----', server='--------', port='---', host='----')
 
     def _handle_success(self, data):
         self.success(data)
